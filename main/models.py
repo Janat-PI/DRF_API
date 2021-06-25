@@ -59,3 +59,10 @@ class OrderItems(models.Model):
 
     class Meta:
         unique_together = ['order', 'product']
+
+
+class WishList(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='likes')
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='likes')
+    is_like = models.BooleanField(default=False)
+

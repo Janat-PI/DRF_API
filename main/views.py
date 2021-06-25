@@ -1,86 +1,90 @@
-import django_filters.rest_framework
-from rest_framework.response import Response
 from .serializers import *
 from .models import *
-from rest_framework import status
-from rest_framework.decorators import api_view
+from rest_framework import status, viewsets, mixins
 from .filters import ProductFilter
-from rest_framework.views import APIView
-from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView
-from django_filters import rest_framework as filters
-from  rest_framework.permissions import IsAuthenticated
-
-# 1) Список товаров, доступен всем пользователям
-# @api_view(['GET'])
-# def products_list(request):
-#     queryset = Product.objects.all()
-#     filtered_qs = ProductFilter(request.GET, queryset=queryset)
-#     print(queryset)
-#     serializer = ProductListSerializer(filtered_qs.qs, many=True)
-#     serializer_queryset = serializer.data
-#     print(serializer_queryset)
-#     return Response(data=serializer_queryset, status=status.HTTP_200_OK)
+from rest_framework.filters import OrderingFilter
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from .permissions import IsAuthorOrAdminPermission, DenyAll
+import django_filters.rest_framework as filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 
-# class ProductsListView(APIView):
-#     def get(self, request):
-#         queryset = Product.objects.all()
-#         filtered_qs = ProductFilter(request.GET, queryset=queryset)
-#         print(queryset)
-#         serializer = ProductListSerializer(filtered_qs.qs, many=True)
-#         serializer_queryset = serializer.data
-#         print(serializer_queryset)
-#         return Response(data=serializer_queryset, status=status.HTTP_200_OK)
-
-
-# 2) Детали товаров, доступны всем
-class ProductsListView(ListAPIView):
-
-    queryset = Product.objects.all()
-    serializer_class = ProductListSerializer
-    filter_backends = (django_filters.rest_framework.DjangoFilterBackend, )
-    filterset_class = ProductFilter
-
-
-# 2) Детали товаров, доступны всем
-class ProductDetailsView(RetrieveAPIView):
+class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.all()
     serializer_class = ProductDetailSerializer
+    filter_backends = (filters.DjangoFilterBackend, OrderingFilter)
+    filterset_class = ProductFilter
+    ordering_fields = ['title', 'price']
 
-# 3) Создание товаров, редактировние, удаление доступно только админам
-# class CreateProductView(CreateAPIView):
-#     queryset = Product.objects.all()
-#     serializer_class = ProductDetailSerializer
-#     permission_classes = [IsAdminUser]
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return ProductListSerializer
+        return self.serializer_class
 
-# 3) Создание товаров, редактировние, удаление доступно только админам
-# class UpdateProductView(UpdateAPIView):
-#     queryset = Product.objects.all()
-#     serializer_class = ProductDetailSerializer
-#     permission_classes = [IsAdminUser]
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminUser()]
+        elif self.action in ['create_review', 'like']:
+            return [IsAuthenticated()]
+        return []
 
-# 3) Создание товаров, редактировние, удаление доступно только админам
-# class DeleteProductView(DestoryAPIView):
-#     queryset = Product.objects.all()
-#     serializer_class = ProductDetailSerializer
-#     permission_classes = [IsAdminUser]
+    @action(detail=True, methods=['POST'])
+    def create_review(self, request, pk):
+        data = request.data.copy()
+        data['product'] = pk
+        serializer = ReviewSerializers(data=data, context={'request': request})
+
+        if serializer.is_valid(raise_exception=True):
+            serializer.save()
+            return Response(serializer.data, status=201)
+        else:
+            return Response(serializer.errors, status=400)
+
+    @action(detail=True, methods=['POST'])
+    def like(self, request, pk):
+        product = self.get_object()
+        user = request.user
+        like_obj, created = WishList.objects.get_or_create(product=product, user=user)
+        if like_obj.is_like:
+            like_obj.is_like = False
+            like_obj.save()
+            return Response('disliked')
+        else:
+            like_obj.is_like = True
+            like_obj.save()
+            return Response('liked')
 
 
-# 4) Создание отзывов, досткпно только залогиненым пользователям
-class CreateReview(CreateAPIView):
+class ReviewViewSet(mixins.CreateModelMixin,
+                    mixins.UpdateModelMixin,
+                    mixins.DestroyModelMixin,
+                    viewsets.GenericViewSet):
     queryset = Review.objects.all()
     serializer_class = ReviewSerializers
-    permission_classes = [IsAuthenticated]
 
-    def get_serializer_context(self):
-        return {'request': self.request}
+    def get_permissions(self):
+        if self.action == 'create':
+            return [IsAuthenticated()]
+        return [IsAuthorOrAdminPermission()]
 
 
+class OrderViewSet(viewsets.ModelViewSet):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
 
+    def get_permissions(self):
+        if self.action in ['create', 'list', 'retrieve']:
+            return [IsAuthenticated()]
+        elif self.action in ['update', 'partial_update']:
+            return [IsAdminUser()]
+        else:
+            return [DenyAll()]
 
-# 5) Просмотр отзывов (внутри делталей продукта) длступна всем
-# 6) Редактирование и удаление отзыва может делать только автор
-# 7) Заказ может создть любой залогиненый пользватель
-# 8) Список заказов пользоватеь видит только свои заказы, админы видят все
-# 9) Редактировать заказы может только админ
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if not self.request.user.is_staff:
+            queryset = queryset.filter(user=self.request.user)
+        return queryset
+
 

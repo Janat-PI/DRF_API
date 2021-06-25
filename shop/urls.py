@@ -16,14 +16,18 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import SimpleRouter
+from main.views import *
 
-from main.views import ProductsListView, ProductDetailsView, CreateReview
+router = SimpleRouter()
+router.register('products', ProductViewSet)
+router.register('reviews', ReviewViewSet)
+router.register('orders', OrderViewSet)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('products/', ProductsListView.as_view()),
-    path('products/<int:pk>/', ProductDetailsView.as_view()),
-    path('reviews/', CreateReview.as_view())
+    path('api/v1/', include(router.urls)),
+    path('api/v1/', include('account.urls')),
 ]
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
