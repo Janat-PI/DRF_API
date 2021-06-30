@@ -53,12 +53,12 @@ class User(AbstractBaseUser):
 
     @staticmethod
     def send_activation_mail(email, activation_code):
-        message = f'thank you for registration' \
-                  f'asdasdasdasdasdas {activation_code}'
+        message = activation_code
         send_mail(
-            'adsaasdad',
+            'Нормально все?',
             message,
             'test@gmail.com',
-            [email, ]
+            [email, ],
+            fail_silently=False
         )
 

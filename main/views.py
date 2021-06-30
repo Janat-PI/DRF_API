@@ -1,7 +1,7 @@
 from .serializers import *
 from .models import *
 from rest_framework import status, viewsets, mixins
-from .filters import ProductFilter
+from .filters import ProductFilter, OrderFilter
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from .permissions import IsAuthorOrAdminPermission, DenyAll
@@ -72,6 +72,9 @@ class ReviewViewSet(mixins.CreateModelMixin,
 class OrderViewSet(viewsets.ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
+    filter_backends = (filters.DjangoFilterBackend, OrderingFilter)
+    filterset_class = OrderFilter
+    ordering_fields = ['total_sum', 'created_at']
 
     def get_permissions(self):
         if self.action in ['create', 'list', 'retrieve']:

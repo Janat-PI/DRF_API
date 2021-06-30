@@ -20,6 +20,9 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='product')
     image = models.ImageField(upload_to='products', blank=True, null=True)
 
+    class Meta:
+        ordering = ['title', 'price']
+
     def __str__(self):
         return self.title
 
@@ -48,6 +51,7 @@ class Order(models.Model):
     products = models.ManyToManyField(Product, through='OrderItems')
     status = models.CharField(max_length=15, choices=StatusChoices.choices)
     total_sum = models.DecimalField(max_digits=10, decimal_places=2)
+    notes = models.TextField(blank=True)
 
 
 class OrderItems(models.Model):
